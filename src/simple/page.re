@@ -22,15 +22,43 @@ module TodoItem = {
   };
 };
 
+module Input = {
+  type state = string;
+  type action =
+    | ChangeText string
+    | KeyDown string;
+  let component = ReasonReact.reducerComponent "Input";
+  let eventValue event :string => (ReactDOMRe.domElementToObj (ReactEventRe.Form.target event))##value;
+  let make ::onSubmit _children => {
+    ...component,
+    reducer: fun action text =>
+      switch action {
+      | ChangeText newText => ReasonReact.Update newText
+      | KeyDown key =>
+        switch key {
+        | "Enter" => ReasonReact.UpdateWithSideEffects "" (fun _self => onSubmit text)
+        | _ => ReasonReact.NoUpdate
+        }
+      },
+    initialState: fun () => "",
+    render: fun {state: text, reduce} =>
+      <input
+        value=text
+        onKeyUp=(reduce (fun e => KeyDown (ReactEventRe.Keyboard.key e)))
+        onChange=(reduce (fun e => ChangeText (eventValue e)))
+      />
+  };
+};
+
 type action =
-  | AddItem
+  | AddItem string
   | ToggleItem int;
 
 let lastId = ref 0;
 
-let newItem () => {
+let newItem title => {
   lastId := !lastId + 1;
-  {title: "New Item", completed: true, id: !lastId}
+  {title, completed: false, id: !lastId}
 };
 
 /* I've gone ahead and made a shortened name for converting strings to elements */
@@ -46,12 +74,13 @@ let make _children => {
   initialState: fun () => {items: [{id: 0, title: "hey", completed: false}]},
   reducer: fun action state =>
     switch action {
-    | AddItem => ReasonReact.Update {items: [newItem (), ...state.items]}
+    | AddItem text => ReasonReact.Update {items: [newItem text, ...state.items]}
     | ToggleItem id => ReasonReact.Update {items: toggleItem id state.items}
     },
   render: fun {reduce, state: {items}} =>
     <div className="app">
       <div className="title"> (se "What to do") </div>
+      <Input onSubmit=(reduce (fun t => AddItem t)) />
       <div className="items">
         (
           ReasonReact.arrayToElement (
@@ -70,7 +99,6 @@ let make _children => {
           )
         )
       </div>
-      <button onClick=(reduce (fun _ => AddItem))> (se "Add an Item") </button>
       <div className="footer"> (se (string_of_int (List.length items) ^ " items")) </div>
     </div>
 };
